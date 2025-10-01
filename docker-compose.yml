@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  openshift-pod-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - OPENSHIFT_NAMESPACES=default,kube-system,openshift-console
+    volumes:
+      # Mount your kubeconfig file
+      - ~/.kube/config:/home/nestjs/.kube/config:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/openshift/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

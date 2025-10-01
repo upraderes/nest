@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEST - Namespace Execution and Status Tool</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .logo i {
+            margin-right: 0.5rem;
+            color: #4CAF50;
+        }
+
+        .status-indicators {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            color: white;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .status-connected {
+            background: rgba(76, 175, 80, 0.8);
+        }
+
+        .status-disconnected {
+            background: rgba(244, 67, 54, 0.8);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .stat-card i {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .running { color: #4CAF50; }
+        .pending { color: #FF9800; }
+        .failed { color: #F44336; }
+        .total { color: #2196F3; }
+
+        .controls-section {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .namespace-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .namespace-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: #f5f5f5;
+            border-radius: 8px;
+            min-width: 200px;
+        }
+
+        .namespace-name {
+            font-weight: 500;
+            flex-grow: 1;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-start {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-stop {
+            background: #F44336;
+            color: white;
+        }
+
+        .btn-restart {
+            background: #FF9800;
+            color: white;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .pods-section {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .pods-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 1rem;
+        }
+
+        .pod-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 1rem;
+            background: white;
+            transition: all 0.2s ease;
+        }
+
+        .pod-card:hover {
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .pod-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .pod-name {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .pod-status {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .status-Running {
+            background: #e8f5e8;
+            color: #4CAF50;
+        }
+
+        .status-Pending {
+            background: #fff3e0;
+            color: #FF9800;
+        }
+
+        .status-Failed {
+            background: #ffebee;
+            color: #F44336;
+        }
+
+        .status-Unknown {
+            background: #f5f5f5;
+            color: #666;
+        }
+
+        .pod-details {
+            font-size: 0.9rem;
+            color: #666;
+            line-height: 1.4;
+        }
+
+        .pod-meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: white;
+        }
+
+        .loading i {
+            font-size: 2rem;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+
+        .notification.success {
+            background: #4CAF50;
+        }
+
+        .notification.error {
+            background: #F44336;
+        }
+
+        .notification.warning {
+            background: #FF9800;
+        }
+
+        .notification.info {
+            background: #2196F3;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .last-update {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9rem;
+            margin-top: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .container {
+                padding: 1rem;
+            }
+
+            .namespace-controls {
+                flex-direction: column;
+            }
+
+            .pods-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .connection-warning {
+            background: rgba(244, 67, 54, 0.1);
+            border: 1px solid rgba(244, 67, 54, 0.3);
+            color: #F44336;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        .bulk-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .namespace-selection h4,
+        .bulk-actions h4 {
+            margin: 0 0 1rem 0;
+            color: #333;
+            font-size: 1rem;
+        }
+
+        .namespace-checkboxes {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .namespace-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            background: #f8f9fa;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .namespace-checkbox:hover {
+            background: #e9ecef;
+        }
+
+        .namespace-checkbox input[type="checkbox"] {
+            margin: 0;
+            cursor: pointer;
+        }
+
+        .namespace-checkbox input[type="checkbox"]:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .namespace-checkbox span {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .selection-controls {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .btn-select-all {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .btn-clear-all {
+            background: #6c757d;
+            color: white;
+        }
+
+        .bulk-actions {
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 2px dashed #dee2e6;
+        }
+
+        .bulk-action-buttons {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .btn-bulk {
+            font-size: 0.9rem;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-bulk:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        }
+
+        @media (max-width: 768px) {
+            .bulk-controls {
+                gap: 1rem;
+            }
+
+            .namespace-checkboxes {
+                grid-template-columns: 1fr;
+            }
+
+            .bulk-action-buttons {
+                flex-direction: column;
+            }
+
+            .selection-controls {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-cubes"></i>
+                    NEST - Namespace Execution and Status Tool
+                </div>
+                <div class="status-indicators">
+                    <div :class="['status-badge', connected ? 'status-connected' : 'status-disconnected']">
+                        <i :class="connected ? 'fas fa-check-circle' : 'fas fa-times-circle'"></i>
+                        {{ connected ? 'Connected' : 'Disconnected' }}
+                    </div>
+                    <div class="status-badge" style="background: rgba(255, 255, 255, 0.2);">
+                        <i class="fas fa-users"></i>
+                        {{ stats.totalPods }} Pods
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="container">
+            <div v-if="!connected" class="connection-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>Warning:</strong> Not connected to OpenShift cluster. Please check your cluster configuration.
+            </div>
+
+            <!-- Statistics Cards -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <i class="fas fa-cubes total"></i>
+                    <div class="stat-value total">{{ stats.totalPods }}</div>
+                    <div class="stat-label">Total Pods</div>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-play-circle running"></i>
+                    <div class="stat-value running">{{ stats.runningPods }}</div>
+                    <div class="stat-label">Running</div>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-clock pending"></i>
+                    <div class="stat-value pending">{{ stats.pendingPods }}</div>
+                    <div class="stat-label">Pending</div>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-times-circle failed"></i>
+                    <div class="stat-value failed">{{ stats.failedPods }}</div>
+                    <div class="stat-label">Failed</div>
+                </div>
+            </div>
+
+            <!-- Bulk Operations -->
+            <div class="controls-section">
+                <h3 class="section-title">
+                    <i class="fas fa-tasks"></i>
+                    Bulk Operations
+                </h3>
+                <div class="bulk-controls">
+                    <div class="namespace-selection">
+                        <h4>Select Namespaces:</h4>
+                        <div class="namespace-checkboxes">
+                            <label v-for="namespace in namespaces" :key="namespace" class="namespace-checkbox">
+                                <input 
+                                    type="checkbox" 
+                                    :value="namespace" 
+                                    v-model="selectedNamespaces"
+                                    :disabled="loading">
+                                <span>{{ namespace }}</span>
+                            </label>
+                        </div>
+                        <div class="selection-controls">
+                            <button @click="selectAllNamespaces" class="btn btn-select-all" :disabled="namespaces.length === 0">
+                                <i class="fas fa-check-double"></i>
+                                Select All
+                            </button>
+                            <button @click="clearNamespaceSelection" class="btn btn-clear-all" :disabled="selectedNamespaces.length === 0">
+                                <i class="fas fa-times"></i>
+                                Clear All
+                            </button>
+                        </div>
+                    </div>
+                    <div class="bulk-actions" v-if="selectedNamespaces.length > 0">
+                        <h4>Actions for {{ selectedNamespaces.length }} selected namespace(s):</h4>
+                        <div class="bulk-action-buttons">
+                            <button 
+                                @click="executeBulkAction('start')" 
+                                :disabled="!connected || loading || selectedNamespaces.length === 0"
+                                class="btn btn-start btn-bulk"
+                                title="Start all pods in selected namespaces">
+                                <i class="fas fa-play"></i>
+                                Start Selected ({{ selectedNamespaces.length }})
+                            </button>
+                            <button 
+                                @click="executeBulkAction('stop')" 
+                                :disabled="!connected || loading || selectedNamespaces.length === 0"
+                                class="btn btn-stop btn-bulk"
+                                title="Stop all pods in selected namespaces">
+                                <i class="fas fa-stop"></i>
+                                Stop Selected ({{ selectedNamespaces.length }})
+                            </button>
+                            <button 
+                                @click="executeBulkAction('restart')" 
+                                :disabled="!connected || loading || selectedNamespaces.length === 0"
+                                class="btn btn-restart btn-bulk"
+                                title="Restart all pods in selected namespaces">
+                                <i class="fas fa-redo"></i>
+                                Restart Selected ({{ selectedNamespaces.length }})
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Individual Namespace Controls -->
+            <div class="controls-section">
+                <h3 class="section-title">
+                    <i class="fas fa-layer-group"></i>
+                    Individual Namespace Controls
+                </h3>
+                <div class="namespace-controls">
+                    <div v-for="namespace in namespaces" :key="namespace" class="namespace-item">
+                        <div class="namespace-name">{{ namespace }}</div>
+                        <div class="action-buttons">
+                            <button 
+                                @click="executeAction('start', namespace)" 
+                                :disabled="!connected || loading"
+                                class="btn btn-start"
+                                title="Start all pods in namespace">
+                                <i class="fas fa-play"></i>
+                                Start
+                            </button>
+                            <button 
+                                @click="executeAction('stop', namespace)" 
+                                :disabled="!connected || loading"
+                                class="btn btn-stop"
+                                title="Stop all pods in namespace">
+                                <i class="fas fa-stop"></i>
+                                Stop
+                            </button>
+                            <button 
+                                @click="executeAction('restart', namespace)" 
+                                :disabled="!connected || loading"
+                                class="btn btn-restart"
+                                title="Restart all pods in namespace">
+                                <i class="fas fa-redo"></i>
+                                Restart
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pods Display -->
+            <div class="pods-section">
+                <h3 class="section-title">
+                    <i class="fas fa-server"></i>
+                    Pod Status ({{ pods.length }} pods)
+                </h3>
+                
+                <div v-if="loading" class="loading">
+                    <i class="fas fa-spinner"></i>
+                    <p>Loading pods...</p>
+                </div>
+
+                <div v-else class="pods-grid">
+                    <div v-for="pod in pods" :key="pod.namespace + '/' + pod.name" class="pod-card">
+                        <div class="pod-header">
+                            <div class="pod-name">{{ pod.name }}</div>
+                            <div :class="['pod-status', 'status-' + pod.status]">
+                                {{ pod.status }}
+                            </div>
+                        </div>
+                        <div class="pod-details">
+                            <div><strong>Namespace:</strong> {{ pod.namespace }}</div>
+                            <div class="pod-meta">
+                                <div><strong>Node:</strong> {{ pod.node }}</div>
+                                <div><strong>Age:</strong> {{ pod.age }}</div>
+                                <div><strong>IP:</strong> {{ pod.ip }}</div>
+                                <div><strong>Restarts:</strong> {{ pod.restarts }}</div>
+                                <div><strong>Ready:</strong> {{ pod.ready ? 'Yes' : 'No' }}</div>
+                                <div><strong>Containers:</strong> {{ pod.containers.length }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="last-update">
+                Last updated: {{ lastUpdate || 'Never' }}
+            </div>
+        </div>
+
+        <!-- Notifications -->
+        <div v-for="notification in notifications" :key="notification.id" 
+             :class="['notification', notification.type]">
+            {{ notification.message }}
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    socket: null,
+                    connected: false,
+                    loading: true,
+                    pods: [],
+                    stats: {
+                        totalPods: 0,
+                        runningPods: 0,
+                        pendingPods: 0,
+                        failedPods: 0,
+                        namespaces: []
+                    },
+                    namespaces: ['default', 'kube-system', 'openshift-console', 'openshift-monitoring', 'myproject'],
+                    selectedNamespaces: [],
+                    lastUpdate: null,
+                    notifications: [],
+                    notificationId: 0
+                };
+            },
+            mounted() {
+                this.initializeSocket();
+            },
+            methods: {
+                initializeSocket() {
+                    this.socket = io();
+                    
+                    this.socket.on('connect', () => {
+                        console.log('Connected to server');
+                        this.loading = false;
+                        this.socket.emit('get-pods');
+                    });
+
+                    this.socket.on('disconnect', () => {
+                        console.log('Disconnected from server');
+                        this.showNotification('Connection lost', 'warning');
+                    });
+
+                    this.socket.on('pods-update', (data) => {
+                        this.pods = data.pods;
+                        this.stats = data.stats;
+                        this.connected = data.connected;
+                        // Ensure namespaces are always available, fallback to default list
+                        this.namespaces = data.stats.namespaces && data.stats.namespaces.length > 0 
+                            ? data.stats.namespaces 
+                            : ['default', 'kube-system', 'openshift-console', 'openshift-monitoring', 'myproject'];
+                        this.lastUpdate = new Date(data.timestamp).toLocaleString();
+                        this.loading = false;
+                    });
+
+                    this.socket.on('action-result', (result) => {
+                        if (result.success) {
+                            this.showNotification(
+                                `${result.action} completed for ${result.namespace}: ${result.message}`, 
+                                'success'
+                            );
+                        } else {
+                            this.showNotification(
+                                `${result.action} failed for ${result.namespace}: ${result.message}`, 
+                                'error'
+                            );
+                        }
+                    });
+
+                    this.socket.on('notification', (notification) => {
+                        this.showNotification(notification.message, notification.type);
+                    });
+
+                    this.socket.on('bulk-action-result', (result) => {
+                        if (result.success) {
+                            this.showNotification(
+                                `Bulk ${result.action} completed successfully on ${result.summary.successful}/${result.summary.total} namespaces`, 
+                                'success'
+                            );
+                        } else {
+                            this.showNotification(
+                                `Bulk ${result.action} completed with ${result.summary.failed} failures out of ${result.summary.total} namespaces`, 
+                                'warning'
+                            );
+                        }
+
+                        // Show individual results
+                        if (result.errors && result.errors.length > 0) {
+                            result.errors.forEach(error => {
+                                this.showNotification(`${error.namespace}: ${error.error}`, 'error');
+                            });
+                        }
+                    });
+                },
+
+                executeAction(action, namespace, podName = null) {
+                    if (!this.connected) {
+                        this.showNotification('Not connected to OpenShift cluster', 'error');
+                        return;
+                    }
+
+                    this.showNotification(`Executing ${action} on ${namespace}...`, 'info');
+                    
+                    this.socket.emit('execute-action', {
+                        action,
+                        namespace,
+                        podName
+                    });
+                },
+
+                executeBulkAction(action) {
+                    if (!this.connected) {
+                        this.showNotification('Not connected to OpenShift cluster', 'error');
+                        return;
+                    }
+
+                    if (this.selectedNamespaces.length === 0) {
+                        this.showNotification('Please select at least one namespace', 'warning');
+                        return;
+                    }
+
+                    const namespaceList = this.selectedNamespaces.join(', ');
+                    this.showNotification(`Executing bulk ${action} on ${this.selectedNamespaces.length} namespaces: ${namespaceList}`, 'info');
+                    
+                    this.socket.emit('execute-bulk-action', {
+                        action,
+                        namespaces: this.selectedNamespaces
+                    });
+                },
+
+                selectAllNamespaces() {
+                    console.log('selectAllNamespaces called, namespaces:', this.namespaces);
+                    this.selectedNamespaces = [...this.namespaces];
+                    console.log('selectedNamespaces after select all:', this.selectedNamespaces);
+                },
+
+                clearNamespaceSelection() {
+                    console.log('clearNamespaceSelection called');
+                    this.selectedNamespaces = [];
+                    console.log('selectedNamespaces after clear:', this.selectedNamespaces);
+                },
+
+                showNotification(message, type = 'info') {
+                    const notification = {
+                        id: this.notificationId++,
+                        message,
+                        type
+                    };
+                    
+                    this.notifications.push(notification);
+                    
+                    setTimeout(() => {
+                        const index = this.notifications.findIndex(n => n.id === notification.id);
+                        if (index > -1) {
+                            this.notifications.splice(index, 1);
+                        }
+                    }, 5000);
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
